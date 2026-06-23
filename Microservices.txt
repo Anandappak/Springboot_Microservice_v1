@@ -1,0 +1,399 @@
+1. What is Spring Boot?
+Spring Boot is a framework built on Spring that simplifies application development by providing:
+Auto Configuration
+Embedded Servers (Tomcat, Jetty)
+Starter Dependencies
+Production-ready features (Actuator)
+
+
+What are Microservices?
+Architecture where application is divided into independent deployable services.
+Benefits:
+Independent Deployment
+Scalability
+Fault Isolation
+Technology Flexibility
+
+Monolith vs Microservices
+Monolith	Microservices
+Single Deployment	Multiple Deployments
+Tight Coupling	Loose Coupling
+Difficult Scaling	Easy Scaling
+Single Codebase	Separate Codebases
+--------------------------------------------------------------------------------
+What is Service Discovery?
+Services dynamically register and discover each other.
+
+Examples:
+Netflix Eureka
+--------------------------------------------------------------------------------
+9. What is API Gateway?
+Single entry point for all client requests.
+
+Responsibilities:
+Authentication
+Routing
+Rate Limiting
+Logging
+Example:
+Spring Cloud Gateway
+-------------------------------------------------------------------------
+What is Circuit Breaker?
+Prevents cascading failures when dependent services are down.
+
+Example:
+Resilience4j
+
+States:
+Closed
+Open
+Half Open
+--------------------------------------------------------------------------------
+How do Microservices communicate?
+Synchronous
+REST API
+Feign Client
+Asynchronous
+Kafka
+RabbitMQ
+--------------------------------------------------------------------------------
+What is Feign Client?
+Declarative REST Client.
+@FeignClient(name="user-service")
+public interface UserClient {
+
+    @GetMapping("/users/{id}")
+    User getUser(@PathVariable Long id);
+	------
+}
+----------------------------------------------------------------------------
+. What is Idempotency?
+Multiple requests produce the same result.
+Examples:
+GET ✓
+PUT ✓
+DELETE ✓
+POST ✗
+---------------------------------------------------------------------
+Difference between save() and saveAndFlush()?
+repository.save(user);
+Data may not be immediately written.
+repository.saveAndFlush(user);
+Immediately syncs with DB.
+----------------------------------------------------------------------
+N+1 Query Problem?
+Occurs when one query fetches parent records and additional queries fetch child records.
+
+Solutions:
+@EntityGraph
+JOIN FETCH
+---------------------------------------------------------------------------
+===================================================================================
+Kafka
+===================================================================================
+What is a Topic?
+A logical channel where messages are stored.
+---------------------------------------------------------------------------
+What is a Partition?
+A topic is divided into partitions for parallel processing.
+---------------------------------------------------------------------------
+Why Kafka?
+Used for asynchronous communication.
+
+Benefits:
+High Throughput
+Scalability
+Durability
+----------------------------------------------------------------------------
+. What is Consumer Group?
+Multiple consumers working together to consume messages.
+===============================================================================
+Propagation Types?
+
+Common:
+REQUIRED
+REQUIRES_NEW
+SUPPORTS
+=================================================================================
+How do you handle distributed transactions?
+
+Using:
+Saga Pattern
+Event-driven architecture
+
+Types:
+Choreography
+Orchestration
+=================================================================================
+What is Saga Pattern?
+
+Sequence of local transactions.
+
+Example:
+
+Order Created
+ ↓
+Payment Success
+ ↓
+Inventory Updated
+ ↓
+Notification Sent
+
+If Payment fails:
+
+Cancel Order
+Rollback Inventory
+===========================================================================
+What challenges did you face in your project?
+Good answer:
+In my project, we faced service-to-service communication latency, database performance 
+issues, Kafka message duplication, and deployment challenges. We solved them using caching,
+Resilience4j Circuit Breaker, query optimization, idempotency checks, and centralized logging with ELK.
+
+======================================================================================
+Frequently Asked Scenario-Based Questions
+Service A is down. How will Service B handle it?
+Circuit Breaker
+Retry Mechanism
+Fallback Response
+-------------------------------------------------------------------------------------
+How do you trace requests across microservices?
+Correlation ID
+Distributed Tracing
+Zipkin
+----------------------------------------------------------------------------------------
+How do you secure Microservices?
+JWT
+OAuth2
+API Gateway
+HTTPS
+------------------------------------------------------------------------------------
+How do you avoid duplicate Kafka messages?
+Idempotent Consumer
+Unique Transaction ID
+
+=====================================================================================================
+
+=====================================================================================================
+What happens if a downstream service is down?
+Scenario:
+Order Service calls Payment Service. Payment Service is unavailable.
+
+Answer:
+Use a Circuit Breaker. After a configured number of failures, the circuit opens and stops sending 
+requests to the Payment Service. Instead, a fallback response is returned.
+Offset Management
+
+@CircuitBreaker(name = "paymentService", fallbackMethod = "fallback")
+public String processPayment() {
+    return paymentClient.pay();
+}
+
+public String fallback(Exception ex) {
+    return "Payment service unavailable. Please try later.";
+}
+
+Interview Follow-up:
+Prevents cascading failures.
+Improves system stability.
+Reduces unnecessary network calls.
+--------------------------------------------------------------------------------------------------------
+2. What are Circuit Breaker States?
+Closed
+Requests pass normally.
+Failures are monitored.
+
+Open
+Requests are blocked.
+Fallback method is executed.
+
+Half-Open
+Limited requests are allowed.
+If successful → Closed.
+If failed → Open.
+
+Real Example:
+Payment Service is down for 2 minutes.
+Circuit opens after 50% failure rate.
+After wait duration, Circuit enters Half-Open state to test recovery.
+---------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------
+How do you handle temporary network issues?
+
+Scenario:
+Inventory Service occasionally times out because of network latency.
+
+Answer:
+Use Retry.
+@Retry(name = "inventoryService")
+public Product getProduct(Long id){
+    return inventoryClient.getProduct(id);
+}
+
+resilience4j:
+  retry:
+    instances:
+      inventoryService:
+        maxAttempts: 3
+        waitDuration: 2s
+		
+First call fails.
+Retry 1.
+Retry 2.
+Success.
+
+Useful for transient failures.
+--------------------------------------------------------------------------------------------------
+When should Retry NOT be used?
+
+Scenario:
+Payment API creates transactions.
+@Retry(name="payment")
+public PaymentResponse pay() {}
+
+If the first request succeeds but the response is lost, retry may create duplicate payments.
+
+Answer:
+Use Retry only for:
+
+GET requests
+Read operations
+Idempotent APIs
+
+Avoid Retry for:
+Payment processing
+Order creation
+Bank transactions
+-------------------------------------------------------------------------------------------------
+How do you prevent slow services from affecting the entire system?
+
+Scenario:
+User Service normally responds in 200ms.
+Sometimes takes 30 seconds.
+
+Answer:
+Use TimeLimiter
+
+@TimeLimiter(name="userService")
+public CompletableFuture<User> getUser() {
+    return CompletableFuture.supplyAsync(
+        () -> userClient.getUser()
+    );
+}
+
+timelimiter:
+  instances:
+    userService:
+      timeoutDuration: 2s
+After 2 seconds request fails and fallback is triggered.
+----------------------------------------------------------------------
+What is Bulkhead Pattern?
+Scenario:
+1000 users simultaneously call Report Service.
+
+Without Bulkhead:
+
+All threads become busy.
+Entire application hangs.
+
+With Bulkhead:
+@Bulkhead(name="reportService")
+public Report getReport() {
+   return reportClient.fetch();
+}
+Answer:
+Bulkhead isolates resources so one service cannot consume all available threads.
+
+Like compartments in a ship.
+=================================================================================
+| Bulkhead                | Circuit Breaker              |
+| ----------------------- | ---------------------------- |
+| Limits concurrent calls | Stops failed calls           |
+| Protects resources      | Protects downstream services |
+| Thread isolation        | Failure isolation            |
+----------------------------------------------------------------------------------
+=================================================================================
+What is Rate Limiting?
+Scenario:
+A client sends 10,000 requests per minute.
+
+Answer:
+Use RateLimiter.
+@RateLimiter(name="customerApi")
+public Customer getCustomer() {
+    return customerService.getCustomer();
+}
+
+ratelimiter:
+  instances:
+    customerApi:
+      limitForPeriod: 100
+      limitRefreshPeriod: 1s
+Only 100 requests allowed per second.
+================================================================================
+What if Kafka Consumer is overloaded?
+Scenario:
+Producer publishes 50,000 events.
+Consumer cannot process quickly.
+
+Answer:
+Use:
+Bulkhead
+RateLimiter
+Multiple consumer instances
+
+Benefits:
+Avoid memory issues.
+Avoid CPU spikes.
+================================================================================
+How do you combine Retry and Circuit Breaker?
+@Retry(name="payment")
+@CircuitBreaker(name="payment")
+public PaymentResponse processPayment() {
+    return paymentClient.pay();
+}
+
+Request
+  ↓
+Retry 3 times
+  ↓
+Still fails
+  ↓
+Circuit Breaker records failure
+  ↓
+Threshold reached
+  ↓
+Circuit Open
+  ↓
+Fallback
+================================================================================
+How do you monitor Resilience4j?
+Using Spring Boot Actuator.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,circuitbreakers
+		
+/actuator/health
+/actuator/metrics
+/actuator/circuitbreakers
+==============================================================================
+Common Interview One-Liners
+Why Circuit Breaker?
+	To prevent cascading failures and improve fault tolerance.
+
+Why Retry?
+	To recover from temporary failures.
+
+Why Bulkhead?
+	To isolate resources and prevent thread exhaustion.
+
+Why TimeLimiter?
+	To avoid waiting indefinitely for slow services.
+
+Why RateLimiter?
+	To protect services from excessive traffic.
+
+-----------------------------------------------------------------------------
